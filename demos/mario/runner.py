@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import Future, ThreadPoolExecutor
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -94,8 +95,9 @@ def _run_realtime_dashboard(
     frames_per_decision: int,
     max_decisions: int,
     screenshot_path: Path | None,
+    actions: tuple[Action, ...] = tuple(Action),
 ) -> None:
-    actions = tuple(Action)
+    actions = tuple(actions)
     active_decision: Decision | None = None
     pending: Future[Decision] | None = None
     pending_snapshot: Any = None
@@ -236,6 +238,7 @@ def run_episode(
     artifacts_dir: Path,
     display: str = "dashboard",
     screenshot_path: Path | None = None,
+    actions: Sequence[Action] | None = None,
 ) -> Path:
     if frames_per_decision < 1:
         raise ValueError("frames_per_decision must be at least 1")
@@ -266,13 +269,14 @@ def run_episode(
                     frames_per_decision=frames_per_decision,
                     max_decisions=max_decisions,
                     screenshot_path=screenshot_path,
+                    actions=tuple(actions) if actions else tuple(Action),
                 )
                 return log_path
 
             previous_action: Action | None = None
             previous_reward = 0.0
             previous_latency_ms = 0.0
-            actions = tuple(Action)
+            actions = tuple(actions) if actions else tuple(Action)
             shields = rescues = 0
             for decision_index in range(max_decisions):
                 snapshot = parser.parse(

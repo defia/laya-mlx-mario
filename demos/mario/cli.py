@@ -15,6 +15,36 @@ from .state import MarioStateParser
 
 DEFAULT_MODEL = "models/hub/laya-multilingual-mlx"
 
+# Action menus. "core" drops noop and in-place jump: with 3 forward jumps in
+# the menu the jump intent splits three ways and never wins argmax at the
+# states that need it (measured: contact-16 goomba state, jump family 0.51 vs
+# right 0.22 yet right wins because 0.51 is spread over three options).
+ACTION_MENUS: dict[str, tuple[Action, ...]] = {
+    "full": tuple(Action),
+    "core": (
+        Action.RIGHT,
+        Action.RIGHT_JUMP,
+        Action.RIGHT_RUN,
+        Action.RIGHT_RUN_JUMP,
+        Action.LEFT,
+    ),
+    # single forward speed: no plain "right" to split the advance intent,
+    # so the two forward jumps win argmax at close-enemy states (measured:
+    # right stays plurality 0.27 at every enemy distance otherwise)
+    "hop": (
+        Action.RIGHT_JUMP,
+        Action.RIGHT_RUN,
+        Action.RIGHT_RUN_JUMP,
+        Action.LEFT,
+    ),
+    # walk-speed arcs only: short hops cannot overshoot the landing strip
+    # after the stair pyramids (the hop menu's measured death at 1123/1412)
+    "step": (
+        Action.RIGHT_JUMP,
+        Action.LEFT,
+    ),
+}
+
 
 def _demo_ram() -> bytearray:
     ram = bytearray(0x0800)
@@ -76,12 +106,35 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument(
         "--frames-per-decision",
         type=int,
-        default=8,
-        help="Minimum macro duration in emulator frames",
+        default=6,
+        help="Decision cadence in emulator frames; 6 is the measured best for pure mode",
     )
     play.add_argument("--max-decisions", type=int, default=2000)
     play.add_argument("--seed", type=int, default=123)
     play.add_argument("--policy", choices=("laya", "heuristic"), default="laya")
+    play.add_argument(
+        "--mode",
+        choices=("pure", "assist"),
+        default="pure",
+        help=(
+            "pure: facts + game background only, no shield/rescue/verdict tags "
+            "(the model judges alone); assist: shield + rescue + verdict tags"
+        ),
+    )
+    play.add_argument(
+        "--no-background",
+        action="store_true",
+        help="pure mode without the constant game-rules block (research A/B)",
+    )
+    play.add_argument(
+        "--actions",
+        choices=tuple(ACTION_MENUS),
+        default="hop",
+        help=(
+            "Controller menu: hop = 4 macros (single forward speed, the pure-mode "
+            "best), core = 5, step = short walk-speed arcs only, full = 7"
+        ),
+    )
     play.add_argument("--model", default=DEFAULT_MODEL, help="Local laya checkpoint directory")
     play.add_argument(
         "--lang",
@@ -112,7 +165,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "play":
         if args.policy == "laya":
             lang = args.lang or ("zh" if "multilingual" in args.model else "en")
-            policy = LayaPolicy(args.model, dtype=args.dtype, lang=lang)
+            policy = LayaPolicy(
+                args.model,
+                dtype=args.dtype,
+                lang=lang,
+                mode=args.mode,
+                background=False if args.no_background else None,
+            )
         else:
             policy = HeuristicPolicy()
         log_path = run_episode(
@@ -124,6 +183,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             artifacts_dir=Path(args.artifacts_dir),
             display=args.display,
             screenshot_path=args.screenshot,
+            actions=ACTION_MENUS[args.actions],
         )
         print(f"Run log: {log_path.resolve()}")
         return 0

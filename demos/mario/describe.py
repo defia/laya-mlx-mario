@@ -60,6 +60,24 @@ BASE_LABELS: dict[Action, str] = {
     Action.LEFT: "向左后退躲避。",
 }
 
+# Game background: constant rules + measured jump physics, no situational
+# advice. Present in every prompt (pure mode), so any prior shift it causes is
+# uniform across states rather than a per-situation nudge.
+BACKGROUND_ZH = (
+    "游戏规则：从侧面或下方碰到敌人会死亡，从上方落到敌人头顶会踩扁它；"
+    "掉进沟里会死亡；时间耗尽会死亡；目标是不断向右前进直到终点旗杆。"
+    "跳跃滞空约44帧，一次跳跃的水平距离由速度决定：全速奔跑约7格，"
+    "正常速度约5格，原地约3格。"
+)
+
+BACKGROUND_EN = (
+    "Game rules: touching an enemy from the side or below kills Mario; landing "
+    "on top of it stomps it. Falling into a pit kills. Running out of time "
+    "kills. The goal is to keep moving right to the flagpole. A jump stays "
+    "airborne about 44 frames, and its horizontal distance depends on speed: "
+    "about 7 tiles at full run, 5 at normal speed, 3 in place."
+)
+
 
 def _enemy(kind: str) -> str:
     return ENEMY_ZH.get(kind, kind)
@@ -103,9 +121,11 @@ def gap_takeoff_verdict(snapshot: MarioSnapshot) -> str | None:
     return "short"
 
 
-def _describe_zh(snapshot: MarioSnapshot) -> str:
+def _describe_zh(snapshot: MarioSnapshot, background: bool = False) -> str:
     """Pure facts, one clause per measured quantity."""
     s = f"超级马里奥{snapshot.world}-{snapshot.stage}关。"
+    if background:
+        s += BACKGROUND_ZH
     s += f"马里奥{x_phrases(snapshot)}。"
     s += terrain_phrase(snapshot)
     s += hazard_phrases(snapshot)
@@ -197,12 +217,34 @@ def control_phrase(snapshot: MarioSnapshot) -> str:
     return f"上个动作执行{snapshot.action_frames}帧，{zh}。"
 
 
-def _build_questions_zh(snapshot: MarioSnapshot, actions: tuple[Action, ...]) -> dict:
+def _build_questions_zh(
+    snapshot: MarioSnapshot,
+    actions: tuple[Action, ...],
+    verdicts: bool = True,
+) -> dict:
     """Three typed judgments, mirroring the original Jev request one-to-one.
 
-    Option labels stay neutral descriptions plus factual tags computed by the
-    parser (takeoff deadline, gap crossing, obstacle ahead) — no advice.
+    verdicts=True (assist mode): neutral descriptions plus factual tags
+    computed by the parser. verdicts=False (pure mode): descriptions only —
+    the model judges timing entirely from the state facts.
     """
+    if not verdicts:
+        return {
+            "next_action": {
+                "type": "choice",
+                "instructions": "选择下一个手柄动作。",
+                "criteria": {action.value: BASE_LABELS[action] for action in actions},
+            },
+            "jump_needed": {
+                "type": "noul",
+                "instructions": "现在是否应该开始或保持向前跳跃？",
+            },
+            "danger": {
+                "type": "score",
+                "instructions": "当前局势有多危险？",
+                "criteria": ["开阔安全", "附近有障碍或敌人", "即将碰撞或坠落"],
+            },
+        }
     hazard = snapshot.threat_features()
     terrain = snapshot.navigation_features()
     over_gap = bool(snapshot.crossing_gap) and not snapshot.grounded
@@ -319,8 +361,10 @@ def _enemy_en(kind: str) -> str:
     return ENEMY_EN.get(kind, kind)
 
 
-def _describe_en(snapshot: MarioSnapshot) -> str:
+def _describe_en(snapshot: MarioSnapshot, background: bool = False) -> str:
     parts = [f"Super Mario Bros world {snapshot.world}-{snapshot.stage}."]
+    if background:
+        parts.append(BACKGROUND_EN)
     parts.append(f"Mario is {_direction_en(snapshot)}.")
     parts.append(_terrain_en(snapshot))
     parts.append(_hazard_en(snapshot))
@@ -408,7 +452,30 @@ def _control_en(snapshot: MarioSnapshot) -> str:
     return f"Last action ran {snapshot.action_frames} frames and {en}."
 
 
-def _build_questions_en(snapshot: MarioSnapshot, actions: tuple[Action, ...]) -> dict:
+def _build_questions_en(
+    snapshot: MarioSnapshot,
+    actions: tuple[Action, ...],
+    verdicts: bool = True,
+) -> dict:
+    if not verdicts:
+        return {
+            "next_action": {
+                "type": "choice",
+                "instructions": "Choose the next controller action.",
+                "criteria": {
+                    action.value: BASE_LABELS_EN[action] for action in actions
+                },
+            },
+            "jump_needed": {
+                "type": "noul",
+                "instructions": "Should a forward jump start or be held right now?",
+            },
+            "danger": {
+                "type": "score",
+                "instructions": "How dangerous is the current situation?",
+                "criteria": ["Open and safe", "Obstacle or enemy nearby", "Collision or fall imminent"],
+            },
+        }
     hazard = snapshot.threat_features()
     terrain = snapshot.navigation_features()
     over_gap = bool(snapshot.crossing_gap) and not snapshot.grounded
@@ -479,12 +546,17 @@ def _build_questions_en(snapshot: MarioSnapshot, actions: tuple[Action, ...]) ->
 # ---------------------------------------------------------------- dispatcher
 
 
-def describe(snapshot: MarioSnapshot, lang: str = "zh") -> str:
-    return _describe_zh(snapshot) if lang != "en" else _describe_en(snapshot)
+def describe(snapshot: MarioSnapshot, lang: str = "zh", background: bool = True) -> str:
+    if lang == "en":
+        return _describe_en(snapshot, background)
+    return _describe_zh(snapshot, background)
 
 
 def build_questions(
-    snapshot: MarioSnapshot, actions: tuple[Action, ...], lang: str = "zh"
+    snapshot: MarioSnapshot,
+    actions: tuple[Action, ...],
+    lang: str = "zh",
+    verdicts: bool = False,
 ) -> dict:
     builder = _build_questions_zh if lang != "en" else _build_questions_en
-    return builder(snapshot, actions)
+    return builder(snapshot, actions, verdicts)

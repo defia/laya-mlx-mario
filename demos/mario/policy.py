@@ -173,20 +173,33 @@ class Policy:
 
 
 class LayaPolicy:
-    """Local laya-mlx policy; facts-only prompt, typed questions, no network."""
+    """Local laya-mlx policy; typed questions, no network.
+
+    mode="pure" (the research target): no shield, no rescue maneuver, no
+    verdict tags on the options — only state facts plus constant game
+    background; the model's own judgment is the whole policy.
+    mode="assist": the documented 1518 baseline — geometric shield, rescue
+    maneuver and verdict tags all on.
+    """
 
     def __init__(
         self,
         model: str = "models/hub/laya-multilingual-mlx",
         dtype: str = "float16",
         lang: str = "zh",
-        shield: bool = True,
+        mode: str = "pure",
+        background: bool | None = None,
     ) -> None:
         from laya_mlx import Agent
 
+        if mode not in ("pure", "assist"):
+            raise ValueError(f"mode must be 'pure' or 'assist', got {mode!r}")
         self._agent = Agent(model, dtype=dtype)
         self._lang = lang
-        self._shield = shield
+        self._shield = mode == "assist"
+        self._verdicts = mode == "assist"
+        self._rescue = mode == "assist"
+        self._background = (mode == "pure") if background is None else background
         self._plan: list[Action] = []
         self.rescues = 0  # completed rescue-maneuver starts (readable by the runner)
 
@@ -197,8 +210,8 @@ class LayaPolicy:
 
     def choose(self, snapshot: MarioSnapshot, actions: Sequence[Action]) -> Decision:
         action_tuple = tuple(actions)
-        prompt = describe(snapshot, self._lang)
-        questions = build_questions(snapshot, action_tuple, self._lang)
+        prompt = describe(snapshot, self._lang, background=self._background)
+        questions = build_questions(snapshot, action_tuple, self._lang, verdicts=self._verdicts)
         started = time.perf_counter()
         result = self._agent.predict(prompt, questions)
         latency_ms = (time.perf_counter() - started) * 1000.0
@@ -220,7 +233,7 @@ class LayaPolicy:
             shielded = True
         # stuck-at-wall maneuver takes precedence over everything; the model
         # still answers (probabilities shown honestly), only the macro differs
-        if not self._plan and stuck_at_wall(snapshot):
+        if self._rescue and not self._plan and stuck_at_wall(snapshot):
             self._plan = list(RESCUE_PLAN)
             self.rescues += 1
         if self._plan:

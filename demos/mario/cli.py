@@ -13,7 +13,10 @@ from .policy import HeuristicPolicy, LayaPolicy
 from .runner import run_episode
 from .state import MarioStateParser
 
-DEFAULT_MODEL = "models/hub/laya-multilingual-mlx"
+# Distance record config: the English 421M checkpoint under pure mode reaches
+# x=2466 (73% of 1-1) with the step menu — see README. The multilingual
+# checkpoint (zh) tops out at x=1763 with spring.
+DEFAULT_MODEL = "models/hub/laya-mlx"
 
 # Action menus. "core" drops noop and in-place jump: with 3 forward jumps in
 # the menu the jump intent splits three ways and never wins argmax at the
@@ -118,8 +121,8 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument(
         "--frames-per-decision",
         type=int,
-        default=12,
-        help="Decision cadence in emulator frames; 12 is the measured best for pure+spring",
+        default=10,
+        help="Decision cadence in emulator frames; 10 is the measured best (pure+step+EN)",
     )
     play.add_argument("--max-decisions", type=int, default=2000)
     play.add_argument("--seed", type=int, default=123)
@@ -141,10 +144,10 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument(
         "--actions",
         choices=tuple(ACTION_MENUS),
-        default="spring",
+        default="step",
         help=(
-            "Controller menu: spring = walk-jump + run-jump (pure-mode best), "
-            "step = walk-speed arcs only, hop = 4 macros, core = 5, full = 7"
+            "Controller menu: step = walk-speed arcs (pure-mode record), "
+            "spring = walk-jump + run-jump (zh best), hop = 4 macros, core = 5, full = 7"
         ),
     )
     play.add_argument("--model", default=DEFAULT_MODEL, help="Local laya checkpoint directory")

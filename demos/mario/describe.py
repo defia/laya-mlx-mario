@@ -65,17 +65,17 @@ BASE_LABELS: dict[Action, str] = {
 # uniform across states rather than a per-situation nudge.
 BACKGROUND_ZH = (
     "游戏规则：从侧面或下方碰到敌人会死亡，从上方落到敌人头顶会踩扁它；"
-    "掉进沟里会死亡；时间耗尽会死亡；目标是不断向右前进直到终点旗杆。"
+    "掉进沟里会死亡；目标是不断向右前进直到终点旗杆。"
     "跳跃滞空约44帧，一次跳跃的水平距离由速度决定：全速奔跑约7格，"
     "正常速度约5格，原地约3格。"
 )
 
 BACKGROUND_EN = (
     "Game rules: touching an enemy from the side or below kills Mario; landing "
-    "on top of it stomps it. Falling into a pit kills. Running out of time "
-    "kills. The goal is to keep moving right to the flagpole. A jump stays "
-    "airborne about 44 frames, and its horizontal distance depends on speed: "
-    "about 7 tiles at full run, 5 at normal speed, 3 in place."
+    "on top of it stomps it. Falling into a pit kills. The goal is to keep "
+    "moving right to the flagpole. A jump stays airborne about 44 frames, and "
+    "its horizontal distance depends on speed: about 7 tiles at full run, 5 at "
+    "normal speed, 3 in place."
 )
 
 

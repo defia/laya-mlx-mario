@@ -106,8 +106,8 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument(
         "--frames-per-decision",
         type=int,
-        default=6,
-        help="Decision cadence in emulator frames; 6 is the measured best for pure mode",
+        default=10,
+        help="Decision cadence in emulator frames; 10 is the measured best for pure+step",
     )
     play.add_argument("--max-decisions", type=int, default=2000)
     play.add_argument("--seed", type=int, default=123)
@@ -129,10 +129,10 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument(
         "--actions",
         choices=tuple(ACTION_MENUS),
-        default="hop",
+        default="step",
         help=(
-            "Controller menu: hop = 4 macros (single forward speed, the pure-mode "
-            "best), core = 5, step = short walk-speed arcs only, full = 7"
+            "Controller menu: step = walk-speed arcs only (pure-mode best), "
+            "hop = 4 macros, core = 5, full = 7"
         ),
     )
     play.add_argument("--model", default=DEFAULT_MODEL, help="Local laya checkpoint directory")

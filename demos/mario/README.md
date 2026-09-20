@@ -18,7 +18,7 @@ NES 模拟器 → RAM/遥测解析器 → 事实性中文提示词 → Laya pred
 uv sync --extra mario --extra demo   # 首次安装
 
 # 推荐：游戏画面 + 模型遥测仪表盘（pygame 窗口）
-# 默认 = pure 模式 + hop 菜单 + 6帧/拍（当前纯模型最优组合，x=1412）
+# 默认 = pure 模式 + step 菜单 + 10帧/拍（当前纯模型最优组合，x=1408）
 uv run python -m demos.mario.cli play
 
 # 对照：护盾+机动+判定标签的旧配方（x=1518 基线）
@@ -62,9 +62,9 @@ uv run python -m demos.mario.probe demos/mario/artifacts/run-*.jsonl --where ene
   是否该起跳）和 score（危险度 0-2，仪表盘实时显示）。
 - **敌人信息只报事实**：位置（前方/身后 N 像素）、相对马里奥的速度（每帧接近/
   远离 N 像素）、接触倒计时；马里奥自身速度（像素/帧）也写进原文。
-- **手柄宏菜单（`--actions`）是基础设施的一部分**：hop（默认）= right_jump/
-  right_run/right_run_jump/left 四键；core = 加回普通 right；step = 只有常速跳
-  和后退；full = 上游 7 键。菜单怎么定见下方研究记录第 8 条。
+- **手柄宏菜单（`--actions`）是基础设施的一部分**：step（默认）= right_jump/
+  left 两键（常速短弧）；hop = 加 right_run/right_run_jump 四键；core = 加回
+  普通 right；full = 上游 7 键。菜单怎么定见下方研究记录第 8 条。
 
 ## 移植时修的问题（上游也有）
 
@@ -96,11 +96,12 @@ uv run python -m demos.mario.probe demos/mario/artifacts/run-*.jsonl --where ene
 | pure：事实+规则块，full 菜单 | x=286，全程 right 走进第一只板栗仔 |
 | pure：core 菜单（5 键） | x=286，同上——跳跃质量被三个跳跃选项摊薄，right 恒为多数派 |
 | pure：hop 菜单（4 键），8帧/拍 | x=1123：全程兔跳清过板栗仔群与绿管，从第一个台阶塔顶满速弹射落沟 |
-| pure：step 菜单（常速短弧），8帧/拍 | x=1401，同样死于第二台阶塔顶弹射 |
-| **pure：hop 菜单 + 6帧/拍（当前默认）** | **x=1412**，约全程 41%；死于第二台阶塔后的沟群 |
+| pure：hop 菜单 + 6帧/拍（规则块含"时间耗尽"句时） | x=1412，死于第二台阶塔后的沟群 |
 | pure：hop + 6帧/拍 + 去掉规则块 | x=1128（规则块的跳跃词汇先验实际有益） |
+| pure：去掉"时间耗尽"句后 hop 全节拍 | 5/6/7/8/10 帧/拍全部 x≈1123——三个字的增删就能重排整局相位 |
+| **pure：step 菜单 + 10帧/拍（当前默认）** | **x=1408**，约全程 41%；死于第二台阶塔后的沟群 |
 
-pure 与 assist 的差距（1412 vs 1518）只剩一道沟：两边的死因都是第二台阶塔
+pure 与 assist 的差距（1408 vs 1518）只剩一道沟：两边的死因都是第二台阶塔
 顶起跳的飞行弧线落点，护盾版本的 1518 也死在同一沟段。
 
 ## 提示词研究记录（这轮 POC 的主要产出）

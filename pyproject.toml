@@ -29,6 +29,12 @@ dev = ["pytest>=8", "ruff>=0.12", "build>=1"]
 reference = ["torch>=2.14,<3", "transformers>=5.17,<6", "safetensors>=0.6"]
 benchmark = ["matplotlib>=3.10", "pyarrow>=18"]
 demo = ["rich>=15,<16", "Pillow>=12,<13"]
+mario = [
+  "gym-super-mario-bros>=9.1.0; python_version >= '3.13'",
+  "gymnasium>=1.0; python_version >= '3.13'",
+  "nes-py>=9.0.1; python_version >= '3.13'",
+  "pygame>=2.6; python_version >= '3.13'",
+]
 
 [project.scripts]
 laya-mlx = "laya_mlx.cli:main"

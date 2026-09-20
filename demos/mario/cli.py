@@ -43,6 +43,18 @@ ACTION_MENUS: dict[str, tuple[Action, ...]] = {
         Action.RIGHT_JUMP,
         Action.LEFT,
     ),
+    # walk-jump + run-jump: lets the model build speed on flats (longer arcs
+    # off the pyramid tops) without a plain-walk option diluting jump intent
+    "spring": (
+        Action.RIGHT_JUMP,
+        Action.RIGHT_RUN_JUMP,
+        Action.LEFT,
+    ),
+    # spring minus the never-chosen retreat (P(left) 0.03-0.10 everywhere)
+    "spring2": (
+        Action.RIGHT_JUMP,
+        Action.RIGHT_RUN_JUMP,
+    ),
 }
 
 
@@ -106,8 +118,8 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument(
         "--frames-per-decision",
         type=int,
-        default=10,
-        help="Decision cadence in emulator frames; 10 is the measured best for pure+step",
+        default=12,
+        help="Decision cadence in emulator frames; 12 is the measured best for pure+spring",
     )
     play.add_argument("--max-decisions", type=int, default=2000)
     play.add_argument("--seed", type=int, default=123)
@@ -129,10 +141,10 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument(
         "--actions",
         choices=tuple(ACTION_MENUS),
-        default="step",
+        default="spring",
         help=(
-            "Controller menu: step = walk-speed arcs only (pure-mode best), "
-            "hop = 4 macros, core = 5, full = 7"
+            "Controller menu: spring = walk-jump + run-jump (pure-mode best), "
+            "step = walk-speed arcs only, hop = 4 macros, core = 5, full = 7"
         ),
     )
     play.add_argument("--model", default=DEFAULT_MODEL, help="Local laya checkpoint directory")

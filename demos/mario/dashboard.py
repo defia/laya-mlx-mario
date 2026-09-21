@@ -31,6 +31,11 @@ class DashboardCommand(StrEnum):
     CONTINUE = "continue"
     RESTART = "restart"
     QUIT = "quit"
+    # level switching: value is the SMB stage id (keys 1-4 at the window)
+    LEVEL_1_1 = "1-1"
+    LEVEL_1_2 = "1-2"
+    LEVEL_1_3 = "1-3"
+    LEVEL_1_4 = "1-4"
 
 
 @dataclass(frozen=True)
@@ -296,6 +301,12 @@ class LiveDashboard:
     ) -> DashboardCommand:
         restart_rect = self._restart_rect()
         command = DashboardCommand.CONTINUE
+        level_keys = {
+            self.pg.K_1: DashboardCommand.LEVEL_1_1,
+            self.pg.K_2: DashboardCommand.LEVEL_1_2,
+            self.pg.K_3: DashboardCommand.LEVEL_1_3,
+            self.pg.K_4: DashboardCommand.LEVEL_1_4,
+        }
         for event in self.pg.event.get():
             if event.type == self.pg.QUIT:
                 return DashboardCommand.QUIT
@@ -303,6 +314,8 @@ class LiveDashboard:
                 return DashboardCommand.QUIT
             if event.type == self.pg.KEYDOWN and event.key == self.pg.K_r:
                 command = DashboardCommand.RESTART
+            if event.type == self.pg.KEYDOWN and event.key in level_keys:
+                command = level_keys[event.key]
             if (
                 event.type == self.pg.MOUSEBUTTONDOWN
                 and event.button == 1
@@ -429,7 +442,9 @@ class LiveDashboard:
             y += 20
 
         footer = (
-            "Click Restart or press R to play again" if run_ended else "R restarts · Esc or Q quits"
+            "R replays · 1-4 switch stage · Esc quits"
+            if run_ended
+            else "R restarts · 1-4 switch stage · Esc or Q quits"
         )
         self._text(footer, self.font_small, t.muted, x, c.height - 28)
         self.pg.display.flip()

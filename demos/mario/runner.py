@@ -85,6 +85,7 @@ def _record_decision(
 def _run_realtime_dashboard(
     *,
     env: Any,
+    env_id: str,
     dashboard: LiveDashboard,
     policy: Policy,
     parser: MarioStateParser,
@@ -95,7 +96,7 @@ def _run_realtime_dashboard(
     max_decisions: int,
     screenshot_path: Path | None,
     actions: tuple[Action, ...] = tuple(Action),
-) -> None:
+) -> Any:
     """Realtime dashboard with HEADLESS-IDENTICAL decision semantics.
 
     The original pipelined loop (decide while the emulator runs, apply on
@@ -121,6 +122,33 @@ def _run_realtime_dashboard(
     terminated = truncated = False
     shields = rescues = 0
     quit_requested = False
+
+    level_commands = {
+        DashboardCommand.LEVEL_1_1: "1-1",
+        DashboardCommand.LEVEL_1_2: "1-2",
+        DashboardCommand.LEVEL_1_3: "1-3",
+        DashboardCommand.LEVEL_1_4: "1-4",
+    }
+
+    def _reset(stage: str | None) -> None:
+        """Restart in place, or switch stage (1-1..1-4) with a fresh env."""
+        nonlocal env, frame, info, active_decision, next_index, episode_reward
+        nonlocal previous_action, previous_reward, previous_latency_ms
+        nonlocal terminated, truncated, shields, rescues
+        if stage is not None:
+            env.close()
+            env = create_mario_env(f"SuperMarioBros-{stage}-v0", render_mode="rgb_array")
+        frame, info = env.reset()
+        parser.reset()
+        active_decision = None
+        next_index = 0
+        episode_reward = 0.0
+        previous_action = None
+        previous_reward = 0.0
+        previous_latency_ms = 0.0
+        terminated = truncated = False
+        shields = rescues = 0
+        print(f"--- {'Stage ' + stage if stage else 'Restarted'} ---")
 
     while not quit_requested:
         snapshot = parser.parse(
@@ -197,18 +225,11 @@ def _run_realtime_dashboard(
             previous_action = decision.action
             previous_reward = total_reward
             next_index += 1
-            if command == DashboardCommand.RESTART and not quit_requested:
-                frame, info = env.reset()
-                parser.reset()
-                active_decision = None
-                next_index = 0
-                episode_reward = 0.0
-                previous_action = None
-                previous_reward = 0.0
-                previous_latency_ms = 0.0
-                terminated = truncated = False
-                shields = rescues = 0
-                print("--- Restarted ---")
+            if not quit_requested and command in (
+                DashboardCommand.RESTART,
+                *level_commands,
+            ):
+                _reset(level_commands.get(command))
                 continue
 
         if screenshot_path is not None and active_decision is not None and not screenshot_saved:
@@ -228,18 +249,9 @@ def _run_realtime_dashboard(
             )
             if command == DashboardCommand.QUIT:
                 break
-            if command == DashboardCommand.RESTART:
-                frame, info = env.reset()
-                parser.reset()
-                active_decision = None
-                next_index = 0
-                episode_reward = 0.0
-                previous_action = None
-                previous_reward = 0.0
-                previous_latency_ms = 0.0
-                terminated = truncated = False
-                shields = rescues = 0
-                print("--- Restarted ---")
+            if command in (DashboardCommand.RESTART, *level_commands):
+                _reset(level_commands.get(command))
+    return env
 
 
 def run_episode(
@@ -272,18 +284,22 @@ def run_episode(
     try:
         with log_path.open("w", encoding="utf-8") as log:
             if dashboard:
-                _run_realtime_dashboard(
-                    env=env,
-                    dashboard=dashboard,
-                    policy=policy,
-                    parser=parser,
-                    frame=frame,
-                    info=info,
-                    log=log,
-                    frames_per_decision=frames_per_decision,
-                    max_decisions=max_decisions,
-                    screenshot_path=screenshot_path,
-                    actions=tuple(actions) if actions else tuple(Action),
+                env = (
+                    _run_realtime_dashboard(
+                        env=env,
+                        env_id=env_id,
+                        dashboard=dashboard,
+                        policy=policy,
+                        parser=parser,
+                        frame=frame,
+                        info=info,
+                        log=log,
+                        frames_per_decision=frames_per_decision,
+                        max_decisions=max_decisions,
+                        screenshot_path=screenshot_path,
+                        actions=tuple(actions) if actions else tuple(Action),
+                    )
+                    or env
                 )
                 return log_path
 

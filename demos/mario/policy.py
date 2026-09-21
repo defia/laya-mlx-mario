@@ -190,6 +190,7 @@ class LayaPolicy:
         mode: str = "pure",
         background: bool | None = None,
         instruction: str = "",
+        grid: bool = True,
     ) -> None:
         from laya_mlx import Agent
 
@@ -205,6 +206,7 @@ class LayaPolicy:
         # only wording this checkpoint's situational trigger responds to
         self._template = mode == "pure"
         self._instruction = instruction
+        self._grid = grid
         self._plan: list[Action] = []
         self.rescues = 0  # completed rescue-maneuver starts (readable by the runner)
 
@@ -216,7 +218,11 @@ class LayaPolicy:
     def choose(self, snapshot: MarioSnapshot, actions: Sequence[Action]) -> Decision:
         action_tuple = tuple(actions)
         prompt = describe(
-            snapshot, self._lang, background=self._background, template=self._template
+            snapshot,
+            self._lang,
+            background=self._background,
+            template=self._template,
+            grid=self._grid,
         ) + self._instruction
         questions = build_questions(snapshot, action_tuple, self._lang, verdicts=self._verdicts)
         started = time.perf_counter()

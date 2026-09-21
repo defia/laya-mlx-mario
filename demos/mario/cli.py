@@ -168,6 +168,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     play.add_argument(
+        "--no-grid",
+        action="store_true",
+        help=(
+            "Drop the local ASCII map from the prompt (measured: the model "
+            "ignores it — identical trajectory without it, shorter prompt)"
+        ),
+    )
+    play.add_argument(
         "--run-hint",
         action="store_true",
         help=(
@@ -212,6 +220,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 mode=args.mode,
                 background=False if args.no_background else None,
                 instruction=RUN_HINT if args.run_hint else "",
+                grid=not args.no_grid,
             )
         else:
             policy = HeuristicPolicy()

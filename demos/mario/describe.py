@@ -125,7 +125,9 @@ def gap_takeoff_verdict(snapshot: MarioSnapshot) -> str | None:
     return "short"
 
 
-def _describe_zh(snapshot: MarioSnapshot, background: bool = False, template: bool = False) -> str:
+def _describe_zh(
+    snapshot: MarioSnapshot, background: bool = False, template: bool = False, grid: bool = True
+) -> str:
     """Pure facts, one clause per measured quantity."""
     s = f"超级马里奥{snapshot.world}-{snapshot.stage}关。"
     if background:
@@ -135,7 +137,7 @@ def _describe_zh(snapshot: MarioSnapshot, background: bool = False, template: bo
     s += hazard_phrases(snapshot)
     s += control_phrase(snapshot)
     s += f"进度{snapshot.progress}(最佳{snapshot.best_progress})，剩余时间{snapshot.time_left}。"
-    if snapshot.local_grid:
+    if grid and snapshot.local_grid:
         s += "\n局部地图(#实心 .空 E敌人 M马里奥):\n" + "\n".join(snapshot.local_grid)
     return s
 
@@ -392,7 +394,9 @@ def _enemy_en(kind: str) -> str:
     return ENEMY_EN.get(kind, kind)
 
 
-def _describe_en(snapshot: MarioSnapshot, background: bool = False, template: bool = False) -> str:
+def _describe_en(
+    snapshot: MarioSnapshot, background: bool = False, template: bool = False, grid: bool = True
+) -> str:
     parts = [f"Super Mario Bros world {snapshot.world}-{snapshot.stage}."]
     if background:
         parts.append(BACKGROUND_EN)
@@ -405,7 +409,7 @@ def _describe_en(snapshot: MarioSnapshot, background: bool = False, template: bo
         f"{snapshot.time_left} on the clock."
     )
     s = "".join(p for p in parts if p)
-    if snapshot.local_grid:
+    if grid and snapshot.local_grid:
         s += "\nLocal grid (# solid, . empty, E enemy, M Mario):\n" + "\n".join(snapshot.local_grid)
     return s
 
@@ -607,10 +611,11 @@ def describe(
     lang: str = "zh",
     background: bool = True,
     template: bool = False,
+    grid: bool = True,
 ) -> str:
     if lang == "en":
-        return _describe_en(snapshot, background, template)
-    return _describe_zh(snapshot, background, template)
+        return _describe_en(snapshot, background, template, grid)
+    return _describe_zh(snapshot, background, template, grid)
 
 
 def build_questions(

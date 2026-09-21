@@ -41,13 +41,20 @@ uv run python -m demos.mario.cli state-demo
 uv run python -m demos.mario.probe demos/mario/artifacts/run-*.jsonl --where enemy-close
 ```
 
-仪表盘：`R` 或 Restart 重开一局 · `Esc`/`Q` 退出。每步决策写入
-`demos/mario/artifacts/run-*.jsonl`（含提示词原文、概率分布、noul/score、时延、
-奖励）。常用参数：`--mode pure|assist`、`--actions hop|core|step|full`（手柄宏
-菜单）、`--frames-per-decision 6`（决策节拍）、`--seed`、
-`--model models/hub/laya-mlx`（英文 421M）、`--policy heuristic`（离线对照）。
-轨迹完全确定：同配置两次运行逐步一致（模型确定性输出 + 1-1 无随机敌人刷新，
-种子不改变轨迹）。
+仪表盘：`R` 或 Restart 重开一局 · **`1`-`4` 随时切换 World 1-1~1-4** ·
+`Esc`/`Q` 退出。窗口里的轨迹与 headless 日志**逐步一致**（同步决策循环）。
+每步决策写入 `demos/mario/artifacts/run-*.jsonl`（含提示词原文、概率分布、
+noul/score、时延、奖励）。常用参数：`--mode pure|assist`、
+`--actions step|spring|hop|mix|core|full`（手柄宏菜单）、
+`--frames-per-decision 9`（决策节拍）、`--no-grid`（去掉 ASCII 地图）、
+`--seed`、`--model models/hub/laya-mlx`（英文 421M）、`--policy heuristic`
+（离线对照）。轨迹完全确定：同配置两次运行逐步一致（模型确定性输出 +
+1-1 无随机敌人刷新，种子不改变轨迹）。
+
+**地图的悖论**：作为信息它是死重（去掉后 spring f12 轨迹逐拍不变、时延还降
+4ms；地形读数零梯度、情境触发走敌情句模板）；但作为 token 序列它现在承重——
+纪录配置 3155 是带着地图调出来的相位，`--no-grid` 会重掷到 1420。"无用"的
+字也在定义轨迹，这是刀刃敏感性的极端体现。
 
 ## 决策语义
 
@@ -116,7 +123,7 @@ uv run python -m demos.mario.probe demos/mario/artifacts/run-*.jsonl --where ene
 | 英文 421M spring/hop | spring 与中文同相位图（1763/1122/678）；hop 步态=跑，x=297 撞板栗仔 |
 | 混合步态（mix + run-hint，敌情模板前/后） | 前：434 卡管超时；后：**829**（216 跑+32 跳），死于第一个台阶塔立面 |
 | assist × 新菜单 | zh+step f10 = **1946**（判定标签修正了 left 刀刃翻转，assist 线新纪录）；zh+spring f12=1763 与 pure 全同（rrj 恒选时护盾无可否决）；EN+step f10=2466 与 pure 逐拍全同——死因是解析器看不到砖块后的沟（流式填充），护盾是瞎的不是弱的 |
-| 1-2 关泛化（`--env SuperMarioBros-1-2-v0`） | EN step f10 = 868、zh spring f12 = 656——步态跨关可用，距离随关卡几何（1-2 低矮砖顶压弧线）变化，非 1-1 特化 |
+| 1-2 关泛化（`--env SuperMarioBros-1-2-v0`） | 像素版背景 + step：f8=**978**/f9=870/f10=868/f11=172（地下关低矮砖顶压弧线，卡在 870-980 段）；EN step f10 = 868——步态跨关可用，非 1-1 特化 |
 | 措辞-相位搜索 R1（10 个背景变体 × spring12/step10） | v5 踩扁前置/step10=**2467**、v7 紧凑版=2466、v2 纯规则=1932；spring 对措辞完全免疫（10 变体全 1763）；v9 提"按住B"反向锚定死在 279 |
 | 措辞-相位搜索 R2-R5（幸存家族 × 相邻节拍 × 微变体） | **v1 像素版物理/step9 = 3155（93%，当前默认与纪录）**；px-semi=3155、v7/f9=3150、v7c=3150、c7s=3150、px-stomp=3148；v1/f10=2430；数字微调（110→111像素）直接换相位 |
 | 措辞-相位搜索 R6（菜单形状票） | 单选项 {right_jump} f9 全跌回 1420、f10 仍收敛 2466；left 排前 → 开局反向狂奔到 x=0 卡 891 拍（顺序效应在 zh 上最强证据） |

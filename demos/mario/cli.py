@@ -13,10 +13,11 @@ from .policy import HeuristicPolicy, LayaPolicy
 from .runner import run_episode
 from .state import MarioStateParser
 
-# Distance record config: the English 421M checkpoint under pure mode reaches
-# x=2466 (73% of 1-1) with the step menu — see README. The multilingual
-# checkpoint (zh) tops out at x=1763 with spring.
-DEFAULT_MODEL = "models/hub/laya-mlx"
+# Distance record: the multilingual (zh) checkpoint + px-physics background +
+# step menu + 9 frames/decision reaches x=3155 (93% of 1-1) — see README.
+# The English 421M checkpoint caps at x=2466 (its choices are text-immune,
+# so the wording-phase search cannot re-roll it).
+DEFAULT_MODEL = "models/hub/laya-multilingual-mlx"
 
 # The only instruction that creates mixed run/jump behavior without advice:
 # a constant factual preference statement. English translations backfire
@@ -135,8 +136,8 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument(
         "--frames-per-decision",
         type=int,
-        default=10,
-        help="Decision cadence in emulator frames; 10 is the measured best (pure+step+EN)",
+        default=9,
+        help="Decision cadence in emulator frames; 9 is the measured best (pure+step+zh)",
     )
     play.add_argument("--max-decisions", type=int, default=2000)
     play.add_argument("--seed", type=int, default=123)

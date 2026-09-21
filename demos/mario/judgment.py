@@ -32,16 +32,21 @@ from .describe import gap_takeoff_verdict
 from .probe import snapshot_from_record
 from .state import MarioSnapshot
 
-# pinned menu and order: rj first (first-position law), the two walks, the
-# running jump, retreat. Order shifts probabilities ~0.2 (README note 12) so
-# every probe in one report MUST share one order.
-MENU = (
-    Action.RIGHT_JUMP,
-    Action.RIGHT,
-    Action.RIGHT_RUN,
-    Action.RIGHT_RUN_JUMP,
-    Action.LEFT,
-)
+# pinned menus and orders: rj first (first-position law), order shifts
+# probabilities ~0.2 (README note 12) so every probe in one report MUST share
+# one order. The menu itself is a report axis: rrj's deep prior absorbs the
+# enemy-presence flip in core/hop menus, so presence-trigger tests use mix.
+MENUS: dict[str, tuple[Action, ...]] = {
+    "core": (
+        Action.RIGHT_JUMP,
+        Action.RIGHT,
+        Action.RIGHT_RUN,
+        Action.RIGHT_RUN_JUMP,
+        Action.LEFT,
+    ),
+    "mix": (Action.RIGHT_JUMP, Action.RIGHT_RUN, Action.LEFT),
+    "step": (Action.RIGHT_JUMP, Action.LEFT),
+}
 JUMP_FAMILY = {Action.RIGHT_JUMP, Action.RIGHT_RUN_JUMP, Action.JUMP}
 ADVANCE_FAMILY = {Action.RIGHT, Action.RIGHT_RUN}
 
@@ -69,11 +74,20 @@ def _sig(s: MarioSnapshot) -> tuple:
 
 def categorize(s: MarioSnapshot) -> tuple[str, dict]:
     """Return (bucket, meta) for a state; bucket '' == not usable."""
-    if not s.grounded:
-        return "", {}
     haz = s.threat_features()
     nav = s.navigation_features()
     meta: dict = {"x": s.x, "world": s.world, "stage": s.stage}
+    # airborne descent: the "yield" question -- mid-fall with an enemy on the
+    # landing path, does the model stop holding right? (discrimination-only;
+    # stomp-vs-yield both being legal, no accuracy label)
+    if not s.grounded:
+        enemy = bool(haz.get("enemy_ahead"))
+        dist = haz.get("nearest_enemy_distance_pixels")
+        if enemy and dist is not None and dist <= 64 and s.jump_phase == "falling":
+            return "AIR_E", meta
+        if not enemy and s.jump_phase == "falling":
+            return "AIR_OPEN", meta
+        return "", {}
     enemy = bool(haz.get("enemy_ahead"))
     dist = haz.get("nearest_enemy_distance_pixels")
     contact = haz.get("estimated_contact_frames")
@@ -109,6 +123,8 @@ def categorize(s: MarioSnapshot) -> tuple[str, dict]:
 
 def ground_truth(bucket: str, meta: dict) -> Action | None:
     """Parser-arithmetic correct family as a single representative action."""
+    if bucket in ("AIR_E", "AIR_OPEN"):
+        return None  # stomp and yield are both legal mid-air; no label
     if bucket == "G_NOW":
         return Action.RIGHT_JUMP
     if bucket in ("G_EARLY", "G_SHORT"):
@@ -158,7 +174,7 @@ def harvest(paths: list[str]) -> list[MarioSnapshot]:
     return out
 
 
-def run(paths: list[str]) -> int:
+def run(paths: list[str], menu_name: str = "core") -> int:
     from .policy import LayaPolicy
 
     snaps = harvest(paths)
@@ -173,6 +189,7 @@ def run(paths: list[str]) -> int:
             step = len(buckets[b]) / PER_CATEGORY_CAP
             buckets[b] = [buckets[b][int(i * step)] for i in range(PER_CATEGORY_CAP)]
 
+    menu = MENUS[menu_name]
     policy = LayaPolicy("models/hub/laya-multilingual-mlx", lang="zh", mode="pure")
     rows = []
     correct = Counter()
@@ -183,7 +200,7 @@ def run(paths: list[str]) -> int:
             jump_ps: list[float] = []
             picks: list[Action] = []
             for s, meta in items:
-                d = policy.choose(s, MENU)
+                d = policy.choose(s, menu)
                 jump_ps.append(sum(
                     p for a, p in d.probabilities.items()
                     if a in {x.value for x in JUMP_FAMILY}
@@ -205,7 +222,7 @@ def run(paths: list[str]) -> int:
     finally:
         policy.close()
 
-    print(f"harvested {len(snaps)} unique states, menu={[a.value for a in MENU]}")
+    print(f"harvested {len(snaps)} unique states, menu={menu_name}={[a.value for a in menu]}")
     print(f"{'bucket':<8} {'n':>4} {'P(jump)':>8} {'±sd':>6}  top choices")
     for bucket, n, mu, sd, cc in rows:
         top = ", ".join(f"{k}:{v}" for k, v in cc.most_common(3))
@@ -229,13 +246,13 @@ def run(paths: list[str]) -> int:
                 gt_family = JUMP_FAMILY if gt in JUMP_FAMILY else (
                     ADVANCE_FAMILY if gt in ADVANCE_FAMILY else {gt}
                 )
-                menu_jump = [a for a in MENU if a in JUMP_FAMILY]
-                menu_adv = [a for a in MENU if a in ADVANCE_FAMILY]
+                menu_jump = [a for a in menu if a in JUMP_FAMILY]
+                menu_adv = [a for a in menu if a in ADVANCE_FAMILY]
                 if menu_jump:
                     always_jump += rng.choice(menu_jump) in gt_family
                 if menu_adv:
                     always_adv += rng.choice(menu_adv) in gt_family
-                random_acc += rng.choice(list(MENU)) in gt_family
+                random_acc += rng.choice(list(menu)) in gt_family
         print(f"\naccuracy vs geometric ground truth ({n} labeled states):")
         print(f"  model          {acc_model:.3f}")
         print(f"  always-jump    {always_jump / n:.3f}")
@@ -247,8 +264,10 @@ def run(paths: list[str]) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("paths", nargs="+", help="run jsonl files or directories")
+    ap.add_argument("--menu", choices=sorted(MENUS), default="core",
+                    help="pinned action menu (rrj-heavy menus mask the enemy-presence flip)")
     args = ap.parse_args(argv)
-    return run(args.paths)
+    return run(args.paths, menu_name=args.menu)
 
 
 if __name__ == "__main__":

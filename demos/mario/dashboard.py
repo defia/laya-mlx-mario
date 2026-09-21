@@ -89,6 +89,11 @@ class LiveDashboard:
         # re-rendering every string at 60fps was visible stutter
         self._surface_cache: dict[tuple[int, str, Color], Any] = {}
         self._wrap_cache: dict[tuple[int, str, int], list[str]] = {}
+        # game-feed surfaces, preallocated once: pixels are written straight
+        # into the source buffer (no per-frame surface allocation) and the
+        # rescale targets a reused destination surface
+        self._game_src: Any = None
+        self._game_dst: Any = None
         ui, ui_bold = "Helvetica Neue,Helvetica,Arial", "Helvetica Neue Bold,Helvetica,Arial"
         cjk = "PingFang SC,Hiragino Sans GB,Arial Unicode MS,STHeiti"
         self.font_title = pygame.font.SysFont(ui_bold, 25)
@@ -165,9 +170,21 @@ class LiveDashboard:
         pixels = np.asarray(frame)
         if pixels.ndim != 3 or pixels.shape[2] < 3:
             raise ValueError(f"Expected an RGB frame, received shape {pixels.shape!r}")
-        pixels = pixels[:, :, :3]
-        source = self.pg.surfarray.make_surface(pixels.swapaxes(0, 1))
-        source_ratio = source.get_width() / source.get_height()
+        pixels = np.ascontiguousarray(pixels[:, :, :3])
+        frame_h, frame_w = pixels.shape[:2]
+
+        # write the frame straight into a preallocated 24-bit source surface —
+        # make_surface per frame was allocating and copying a fresh surface 60
+        # times a second (the main remaining per-frame cost after text caching)
+        if (
+            self._game_src is None
+            or self._game_src.get_width() != frame_w
+            or self._game_src.get_height() != frame_h
+        ):
+            self._game_src = self.pg.Surface((frame_w, frame_h), depth=24).convert()
+        self.pg.surfarray.pixels3d(self._game_src)[:] = pixels.swapaxes(0, 1)
+
+        source_ratio = frame_w / frame_h
         target_ratio = width / height
         if source_ratio > target_ratio:
             target_width = width
@@ -175,10 +192,14 @@ class LiveDashboard:
         else:
             target_height = height
             target_width = round(height * source_ratio)
-        scaled = self.pg.transform.scale(source, (target_width, target_height))
+        if self._game_dst is None or self._game_dst.get_size() != (target_width, target_height):
+            self._game_dst = self.pg.Surface((target_width, target_height)).convert()
+        # nearest-neighbour scale into the reused destination (smoothscale is
+        # an order of magnitude slower and adds nothing at this pixel size)
+        self.pg.transform.scale(self._game_src, (target_width, target_height), self._game_dst)
         target_x = x + (width - target_width) // 2
         target_y = y + (height - target_height) // 2
-        self.screen.blit(scaled, (target_x, target_y))
+        self.screen.blit(self._game_dst, (target_x, target_y))
         self.pg.draw.rect(self.screen, self.theme.line, (x, y, width, height), 1, border_radius=4)
 
     def _restart_rect(self) -> Any:

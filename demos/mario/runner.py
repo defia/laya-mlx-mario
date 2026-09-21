@@ -355,6 +355,20 @@ def run_episode(
                     release = ACTION_TO_INDEX[JUMP_RELEASE_ACTION[decision.action]]
                     frame, reward, terminated, truncated, info = env.step(release)
                     total_reward += float(reward)
+                    if terminated or truncated:
+                        # the episode can end on the release frame itself
+                        # (measured crash: spring f7 died exactly there)
+                        _record_decision(
+                            log,
+                            decision_index=decision_index,
+                            snapshot=snapshot,
+                            decision=decision,
+                            reward=total_reward,
+                            terminated=terminated,
+                            truncated=truncated,
+                            flag_get=bool(info.get("flag_get")),
+                        )
+                        break
                 for _ in range(frames_per_decision):
                     frame, reward, terminated, truncated, info = env.step(action_index)
                     total_reward += float(reward)

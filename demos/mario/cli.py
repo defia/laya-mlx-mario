@@ -18,6 +18,11 @@ from .state import MarioStateParser
 # checkpoint (zh) tops out at x=1763 with spring.
 DEFAULT_MODEL = "models/hub/laya-mlx"
 
+# The only instruction that creates mixed run/jump behavior without advice:
+# a constant factual preference statement. English translations backfire
+# ("Running is the fastest..." anchors right_run to 0.91) — keep it Chinese.
+RUN_HINT = "平整的地面上向前奔跑是更快的移动方式。"
+
 # Action menus. "core" drops noop and in-place jump: with 3 forward jumps in
 # the menu the jump intent splits three ways and never wins argmax at the
 # states that need it (measured: contact-16 goomba state, jump family 0.51 vs
@@ -57,6 +62,15 @@ ACTION_MENUS: dict[str, tuple[Action, ...]] = {
     "spring2": (
         Action.RIGHT_JUMP,
         Action.RIGHT_RUN_JUMP,
+    ),
+    # the mixed gait: jump option FIRST (option order shifts probabilities
+    # ~0.2 — see README note 12), paired with --run-hint it runs on flats and
+    # jumps on the enemy/terrain triggers. Caps at the first stair pyramid
+    # (x~845); behaviorally the most human-like pure-mode gait.
+    "mix": (
+        Action.RIGHT_JUMP,
+        Action.RIGHT_RUN,
+        Action.LEFT,
     ),
 }
 
@@ -147,7 +161,17 @@ def build_parser() -> argparse.ArgumentParser:
         default="step",
         help=(
             "Controller menu: step = walk-speed arcs (pure-mode record), "
-            "spring = walk-jump + run-jump (zh best), hop = 4 macros, core = 5, full = 7"
+            "spring = walk-jump + run-jump (zh best), hop = 4 macros, "
+            "mix = run + triggered jumps (most human-like, needs --run-hint), "
+            "core = 5, full = 7"
+        ),
+    )
+    play.add_argument(
+        "--run-hint",
+        action="store_true",
+        help=(
+            "Append the constant fact 'running on flat ground is faster' — with "
+            "--actions mix this produces run-on-flats / jump-on-trigger behavior"
         ),
     )
     play.add_argument("--model", default=DEFAULT_MODEL, help="Local laya checkpoint directory")
@@ -186,6 +210,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 lang=lang,
                 mode=args.mode,
                 background=False if args.no_background else None,
+                instruction=RUN_HINT if args.run_hint else "",
             )
         else:
             policy = HeuristicPolicy()

@@ -121,13 +121,13 @@ def gap_takeoff_verdict(snapshot: MarioSnapshot) -> str | None:
     return "short"
 
 
-def _describe_zh(snapshot: MarioSnapshot, background: bool = False) -> str:
+def _describe_zh(snapshot: MarioSnapshot, background: bool = False, template: bool = False) -> str:
     """Pure facts, one clause per measured quantity."""
     s = f"超级马里奥{snapshot.world}-{snapshot.stage}关。"
     if background:
         s += BACKGROUND_ZH
     s += f"马里奥{x_phrases(snapshot)}。"
-    s += terrain_phrase(snapshot)
+    s += terrain_phrase(snapshot, template)
     s += hazard_phrases(snapshot)
     s += control_phrase(snapshot)
     s += f"进度{snapshot.progress}(最佳{snapshot.best_progress})，剩余时间{snapshot.time_left}。"
@@ -147,20 +147,47 @@ def x_phrases(snapshot: MarioSnapshot) -> str:
     return "，".join(parts)
 
 
-def terrain_phrase(snapshot: MarioSnapshot) -> str:
+def terrain_phrase(snapshot: MarioSnapshot, template: bool = False) -> str:
     terrain = snapshot.navigation_features()
     if not terrain.get("geometry_available"):
         return ""
     reliability = "high" if snapshot.grounded else "low_airborne"
     prefix = "" if reliability == "high" else "空中观测不可靠，以最后立足点所见为准:"
-    if terrain.get("obstacle_distance_tiles") is not None:
+    obstacle = terrain.get("obstacle_distance_tiles")
+    gap = terrain.get("gap_distance_tiles")
+    if template and snapshot.grounded:
+        # pure mode: terrain restated in the SAME sentence template as the
+        # enemy hazard line — measured to carry the model's only situational
+        # trigger (enemy-presence flips run->jump; the plain terrain wording
+        # does not, the hazard template does, about half as strongly)
+        speed = max(snapshot.dx, 1)
+        if obstacle is not None:
+            px = obstacle * 16 + 8
+            prefix += (
+                f"最近的障碍(高{terrain['obstacle_height_tiles']}格)在前方{px}像素，"
+                f"相对马里奥每帧接近{speed}像素，预计{round(px / speed)}帧后到达。"
+            )
+            # doubling only TALL walls: it widens their flip window to 2-3
+            # tiles (running-jump range), but on pipes it re-rolls the knife
+            # edge unfavorably (measured: 434 stuck again)
+            if (terrain['obstacle_height_tiles'] or 0) >= 3:
+                prefix += f"前方有高{terrain['obstacle_height_tiles']}格的障碍。"
+            return prefix
+        if gap is not None:
+            px = gap * 16 + 8
+            prefix += (
+                f"最近的沟在前方{px}像素，"
+                f"相对马里奥每帧接近{speed}像素，预计{round(px / speed)}帧后到达沟沿。"
+            )
+            return prefix
+    if obstacle is not None:
         prefix += (
-            f"前方{terrain['obstacle_distance_tiles']}格有"
+            f"前方{obstacle}格有"
             f"{terrain['obstacle_height_tiles']}格高的障碍。"
         )
-    elif terrain.get("gap_distance_tiles") is not None:
+    elif gap is not None:
         prefix += (
-            f"前方{terrain['gap_distance_tiles']}格开始有沟，"
+            f"前方{gap}格开始有沟，"
             f"可见宽{terrain['gap_width_tiles_visible']}格。"
         )
     else:
@@ -361,12 +388,12 @@ def _enemy_en(kind: str) -> str:
     return ENEMY_EN.get(kind, kind)
 
 
-def _describe_en(snapshot: MarioSnapshot, background: bool = False) -> str:
+def _describe_en(snapshot: MarioSnapshot, background: bool = False, template: bool = False) -> str:
     parts = [f"Super Mario Bros world {snapshot.world}-{snapshot.stage}."]
     if background:
         parts.append(BACKGROUND_EN)
     parts.append(f"Mario is {_direction_en(snapshot)}.")
-    parts.append(_terrain_en(snapshot))
+    parts.append(_terrain_en(snapshot, template))
     parts.append(_hazard_en(snapshot))
     parts.append(_control_en(snapshot))
     parts.append(
@@ -390,7 +417,7 @@ def _direction_en(snapshot: MarioSnapshot) -> str:
     return ", ".join(parts)
 
 
-def _terrain_en(snapshot: MarioSnapshot) -> str:
+def _terrain_en(snapshot: MarioSnapshot, template: bool = False) -> str:
     terrain = snapshot.navigation_features()
     if not terrain.get("geometry_available"):
         return ""
@@ -399,14 +426,39 @@ def _terrain_en(snapshot: MarioSnapshot) -> str:
         if snapshot.grounded
         else "Airborne readings are unreliable; last grounded view: "
     )
-    if terrain.get("obstacle_distance_tiles") is not None:
+    obstacle = terrain.get("obstacle_distance_tiles")
+    gap = terrain.get("gap_distance_tiles")
+    if template and snapshot.grounded:
+        # see the zh counterpart: the hazard-template restatement carries the
+        # only situational trigger this checkpoint responds to
+        speed = max(snapshot.dx, 1)
+        if obstacle is not None:
+            px = obstacle * 16 + 8
+            s = prefix + (
+                f"Nearest obstacle ({terrain['obstacle_height_tiles']} tiles high) "
+                f"is {px}px ahead, closes {speed}px per frame relative to Mario, "
+                f"contact in about {round(px / speed)} frames."
+            )
+            # doubling only TALL walls widens their flip window to 2-3 tiles
+            # (measured: 4-high wall at 3 tiles rj 0.42 -> 0.54) without
+            # re-rolling the pipe trigger unfavorably
+            if (terrain['obstacle_height_tiles'] or 0) >= 3:
+                s += f" Obstacle {terrain['obstacle_height_tiles']} tiles high ahead."
+            return s
+        if gap is not None:
+            px = gap * 16 + 8
+            return prefix + (
+                f"Nearest gap is {px}px ahead, closes {speed}px per frame "
+                f"relative to Mario, contact in about {round(px / speed)} frames."
+            )
+    if obstacle is not None:
         prefix += (
-            f"Obstacle {terrain['obstacle_distance_tiles']} tile(s) ahead, "
+            f"Obstacle {obstacle} tile(s) ahead, "
             f"{terrain['obstacle_height_tiles']} tile(s) high."
         )
-    elif terrain.get("gap_distance_tiles") is not None:
+    elif gap is not None:
         prefix += (
-            f"Gap begins {terrain['gap_distance_tiles']} tile(s) ahead, "
+            f"Gap begins {gap} tile(s) ahead, "
             f"{terrain['gap_width_tiles_visible']} tile(s) wide as far as visible."
         )
     else:
@@ -546,10 +598,15 @@ def _build_questions_en(
 # ---------------------------------------------------------------- dispatcher
 
 
-def describe(snapshot: MarioSnapshot, lang: str = "zh", background: bool = True) -> str:
+def describe(
+    snapshot: MarioSnapshot,
+    lang: str = "zh",
+    background: bool = True,
+    template: bool = False,
+) -> str:
     if lang == "en":
-        return _describe_en(snapshot, background)
-    return _describe_zh(snapshot, background)
+        return _describe_en(snapshot, background, template)
+    return _describe_zh(snapshot, background, template)
 
 
 def build_questions(

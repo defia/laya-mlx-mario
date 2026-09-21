@@ -84,6 +84,11 @@ class LiveDashboard:
         pygame.display.set_caption("Laya plays Super Mario Bros. (local MLX)")
         self.screen = pygame.display.set_mode((self.config.width, self.config.height))
         self.clock = pygame.time.Clock()
+        # font.render is expensive (CJK especially) and most dashboard text is
+        # identical frame to frame — cache surfaces; the measured cost of
+        # re-rendering every string at 60fps was visible stutter
+        self._surface_cache: dict[tuple[int, str, Color], Any] = {}
+        self._wrap_cache: dict[tuple[int, str, int], list[str]] = {}
         ui, ui_bold = "Helvetica Neue,Helvetica,Arial", "Helvetica Neue Bold,Helvetica,Arial"
         cjk = "PingFang SC,Hiragino Sans GB,Arial Unicode MS,STHeiti"
         self.font_title = pygame.font.SysFont(ui_bold, 25)
@@ -110,7 +115,14 @@ class LiveDashboard:
         x: int,
         y: int,
     ) -> None:
-        self.screen.blit(font.render(value, True, color), (x, y))
+        key = (id(font), value, color)
+        surface = self._surface_cache.get(key)
+        if surface is None:
+            surface = font.render(value, True, color)
+            if len(self._surface_cache) > 4096:
+                self._surface_cache.clear()
+            self._surface_cache[key] = surface
+        self.screen.blit(surface, (x, y))
 
     def _rule(self, x: int, y: int, width: int) -> None:
         self.pg.draw.line(self.screen, self.theme.line, (x, y), (x + width, y), 1)
@@ -173,8 +185,17 @@ class LiveDashboard:
         return self.pg.Rect(self.config.width - 144, 13, 120, 36)
 
     def _wrap_cjk(self, text: str, font: Any, max_width: int) -> list[str]:
-        """Greedy wrap by measured width; works for CJK and ASCII mixed text."""
-        lines, current = [], ""
+        """Greedy wrap by measured width; works for CJK and ASCII mixed text.
+
+        Wrapping measures every character with font.size — cached per text,
+        since the prompt only changes once per decision.
+        """
+        key = (id(font), text, max_width)
+        cached = self._wrap_cache.get(key)
+        if cached is not None:
+            return cached
+        lines: list[str] = []
+        current = ""
         for ch in text:
             if ch == "\n":
                 lines.append(current)
@@ -187,6 +208,9 @@ class LiveDashboard:
                 current += ch
         if current:
             lines.append(current)
+        if len(self._wrap_cache) > 512:
+            self._wrap_cache.clear()
+        self._wrap_cache[key] = lines
         return lines
 
     def _draw_model_view(

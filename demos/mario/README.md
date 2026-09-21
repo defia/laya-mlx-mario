@@ -25,6 +25,12 @@ uv run python -m demos.mario.cli play
 # 英文 421M 对照（x=2466；其选择对文本免疫，措辞搜索对它无效）
 uv run python -m demos.mario.cli play --model models/hub/laya-mlx --frames-per-decision 10
 
+# 各关最佳配置（仪表盘 1-4 切换保留启动配置——默认 step+9帧 是 1-1 专用的，
+# 在 1-3/1-4 上只有 384/228；要复现下表成绩需带参数启动）
+uv run python -m demos.mario.cli play --env SuperMarioBros-1-2-v0 --actions hop   --frames-per-decision 6   # 978（柱前活锁，Esc 退出）
+uv run python -m demos.mario.cli play --env SuperMarioBros-1-3-v0 --actions spring --frames-per-decision 10  # 743
+uv run python -m demos.mario.cli play --env SuperMarioBros-1-4-v0 --actions spring --frames-per-decision 10  # 546
+
 # 混合步态（最像人玩）：平地跑、遇敌/沟/墙触发跳，x=829（卡在第一个台阶塔）
 uv run python -m demos.mario.cli play --actions mix --run-hint
 

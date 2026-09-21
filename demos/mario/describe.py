@@ -65,12 +65,12 @@ BASE_LABELS: dict[Action, str] = {
 # uniform across states rather than a per-situation nudge. Chosen by a 2-D
 # wording search (distance x wall-stall): the zh checkpoint is knife-edge
 # sensitive, so honest rephrasings are legitimate phase re-rolls. This compact
-# stomp-first tile version carries the f9 step trajectory to x=3150 with only
-# 108 stall frames — it clears both 4-high walls on first approach. The pixel
-# version reached 3155 but spent 711 frames (22% of the run) bouncing off
-# those walls (a geometric pixel-lottery, see README note 20); both die at
-# the same final-staircase face. Basin tolerates micro-edits (距离→水平距离
-# stays 3150/108); 掉沟死/语序 edits re-roll to 1420.
+# stomp-first tile version carries the f9 step trajectory to the 1-1 FLAGPOLE
+# (stage clear) in 240 decisions with only 108 stall frames — it clears both
+# 4-high walls on first approach. The pixel version also cleared but spent
+# 711 frames (22% of the run) bouncing off those walls (a geometric
+# pixel-lottery, README notes 20-21). Basin tolerates micro-edits (距离→
+# 水平距离 stays the same); 掉沟死/语序 edits re-roll to 1420.
 BACKGROUND_ZH = (
     "规则：从头顶落下会踩扁它，侧面或下方碰敌人死；掉沟死；向右前进到旗杆。"
     "跳跃约44帧滞空，距离随速度：全速约7格，常速约5格，原地约3格。"

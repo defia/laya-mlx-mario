@@ -14,11 +14,11 @@ from .runner import run_episode
 from .state import MarioStateParser
 
 # Distance record: the multilingual (zh) checkpoint + compact tile-physics
-# background + step menu + 9 frames/decision reaches x=3150 with only 108
-# wall-stall frames (the px version hit 3155 but stalled 711 frames at the
-# two 4-high walls — see README note 20). The English 421M checkpoint caps
-# at x=2466 (its choices are text-immune, so the wording-phase search
-# cannot re-roll it).
+# background + step menu + 9 frames/decision CLEARS 1-1 (flagpole at x=3150,
+# 240 decisions, 108 wall-stall frames; the px version also cleared but
+# stalled 711 frames at the two 4-high walls — README notes 20-21). The
+# English 421M checkpoint dies at x=2466 (its choices are text-immune, so
+# the wording-phase search cannot re-roll it).
 DEFAULT_MODEL = "models/hub/laya-multilingual-mlx"
 
 # The only instruction that creates mixed run/jump behavior without advice:

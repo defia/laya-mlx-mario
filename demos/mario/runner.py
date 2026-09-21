@@ -58,10 +58,18 @@ def _record_decision(
     reward: float,
     terminated: bool,
     truncated: bool,
+    flag_get: bool = False,
 ) -> None:
+    state = snapshot.to_state()
+    if flag_get:
+        # the emulator terminates ON flagpole contact; the snapshot was parsed
+        # one decision earlier, so its RAM never saw the stage-clear flag.
+        # Without this override every clear reads as an unexplained stop
+        # (measured: six "died at the final staircase" runs were all clears)
+        state["episode"] = {**state["episode"], "stage_clear": True}
     record = {
         "decision": decision_index,
-        "state": snapshot.to_state(),
+        "state": state,
         "debug_state": snapshot.to_debug_state(),
         "state_text": snapshot.to_text(),
         "prompt": decision.prompt,
@@ -77,6 +85,7 @@ def _record_decision(
         "reward": reward,
         "terminated": bool(terminated),
         "truncated": bool(truncated),
+        "flag_get": bool(flag_get),
     }
     log.write(json.dumps(record, separators=(",", ":")) + "\n")
     log.flush()
@@ -163,6 +172,9 @@ def _run_realtime_dashboard(
         run_ended = bool(
             snapshot.dead or snapshot.clear or terminated or truncated or next_index >= max_decisions
         )
+        # flag_get arrives in the info dict of the terminating step; the parse
+        # above happened one decision earlier and cannot see it
+        cleared = bool(info.get("flag_get")) and (terminated or snapshot.clear)
         if not run_ended:
             decision = policy.choose(snapshot, actions)  # blocking, ~one frame
             total_reward = 0.0
@@ -221,6 +233,7 @@ def _run_realtime_dashboard(
                 reward=total_reward,
                 terminated=terminated,
                 truncated=truncated,
+                flag_get=bool(info.get("flag_get")),
             )
             previous_action = decision.action
             previous_reward = total_reward
@@ -244,6 +257,7 @@ def _run_realtime_dashboard(
                 episode_reward=episode_reward,
                 waiting=False,
                 run_ended=run_ended,
+                stage_clear=cleared,
                 shield_count=shields,
                 rescue_count=rescues,
             )
@@ -355,6 +369,7 @@ def run_episode(
                     reward=total_reward,
                     terminated=terminated,
                     truncated=truncated,
+                    flag_get=bool(info.get("flag_get")),
                 )
                 print(
                     f"#{decision_index:04d} x={snapshot.x:04d} "
@@ -362,6 +377,7 @@ def run_episode(
                     f"confidence={decision.confidence:.2f} latency={decision.latency_ms:.0f}ms"
                     + (" [SHIELD]" if decision.shielded and not decision.rescue else "")
                     + (" [RESCUE]" if decision.rescue else "")
+                    + (" [STAGE CLEAR]" if info.get("flag_get") else "")
                 )
 
                 previous_action = decision.action

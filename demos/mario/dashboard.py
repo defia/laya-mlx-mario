@@ -296,6 +296,7 @@ class LiveDashboard:
         episode_reward: float,
         waiting: bool = False,
         run_ended: bool = False,
+        stage_clear: bool = False,
         shield_count: int = 0,
         rescue_count: int = 0,
     ) -> DashboardCommand:
@@ -335,12 +336,12 @@ class LiveDashboard:
 
         self._text("Laya plays Mario (local)", self.font_title, t.text, margin, 18)
         if run_ended:
-            status = "Run ended"
+            status = "Stage clear!" if stage_clear else "Run ended"
         else:
             status = "Waiting for Laya" if waiting else "Live decision loop"
         status_width = self.font_small.size(status)[0]
         dot_x = panel_x - status_width - 24
-        status_color = t.danger if run_ended else (t.warning if waiting else t.accent)
+        status_color = t.accent if stage_clear else (t.danger if run_ended else (t.warning if waiting else t.accent))
         self.pg.draw.circle(self.screen, status_color, (dot_x, 31), 4)
         self._text(status, self.font_small, t.muted, dot_x + 12, 21)
         hovered = restart_rect.collidepoint(self.pg.mouse.get_pos())

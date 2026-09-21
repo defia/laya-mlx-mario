@@ -62,16 +62,18 @@ BASE_LABELS: dict[Action, str] = {
 
 # Game background: constant rules + measured jump physics, no situational
 # advice. Present in every prompt (pure mode), so any prior shift it causes is
-# uniform across states rather than a per-situation nudge. The physics numbers
-# are stated in PIXELS (not tiles): chosen by the wording-phase search — the
-# zh checkpoint is knife-edge sensitive, so honest rephrasings are legitimate
-# phase re-rolls, and this one carries the f9 step trajectory to x=3155 (93%
-# of 1-1), the pure-mode record. The tile version capped at 1763/1408.
+# uniform across states rather than a per-situation nudge. Chosen by a 2-D
+# wording search (distance x wall-stall): the zh checkpoint is knife-edge
+# sensitive, so honest rephrasings are legitimate phase re-rolls. This compact
+# stomp-first tile version carries the f9 step trajectory to x=3150 with only
+# 108 stall frames — it clears both 4-high walls on first approach. The pixel
+# version reached 3155 but spent 711 frames (22% of the run) bouncing off
+# those walls (a geometric pixel-lottery, see README note 20); both die at
+# the same final-staircase face. Basin tolerates micro-edits (距离→水平距离
+# stays 3150/108); 掉沟死/语序 edits re-roll to 1420.
 BACKGROUND_ZH = (
-    "游戏规则：从侧面或下方碰到敌人会死亡，从上方落到敌人头顶会踩扁它；"
-    "掉进沟里会死亡；目标是不断向右前进直到终点旗杆。"
-    "跳跃滞空约44帧，一次跳跃的水平距离由速度决定：全速奔跑约110像素，"
-    "正常速度约80像素，原地约45像素。"
+    "规则：从头顶落下会踩扁它，侧面或下方碰敌人死；掉沟死；向右前进到旗杆。"
+    "跳跃约44帧滞空，距离随速度：全速约7格，常速约5格，原地约3格。"
 )
 
 BACKGROUND_EN = (

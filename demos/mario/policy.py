@@ -196,7 +196,11 @@ class LayaPolicy:
 
         if mode not in ("pure", "assist"):
             raise ValueError(f"mode must be 'pure' or 'assist', got {mode!r}")
-        self._agent = Agent(model, dtype=dtype)
+        # cache_prompts: the pure-mode questions are identical every decision,
+        # so the tokenized question prefix is a ~100% cache hit; compile fuses
+        # the frozen forward pass. Measured bit-identical outputs, 1-2.5ms
+        # faster per decision.
+        self._agent = Agent(model, dtype=dtype, cache_prompts=True, compile=True)
         self._lang = lang
         self._shield = mode == "assist"
         self._verdicts = mode == "assist"

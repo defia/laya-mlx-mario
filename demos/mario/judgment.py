@@ -46,6 +46,10 @@ MENUS: dict[str, tuple[Action, ...]] = {
     ),
     "mix": (Action.RIGHT_JUMP, Action.RIGHT_RUN, Action.LEFT),
     "step": (Action.RIGHT_JUMP, Action.LEFT),
+    # the "natural fall" yield question: no tested gameplay menu ever offered
+    # NOOP, so releasing the stick mid-air was inexpressible. This menu gives
+    # the model exactly the choice the observation describes.
+    "release": (Action.RIGHT_JUMP, Action.NOOP, Action.LEFT),
 }
 JUMP_FAMILY = {Action.RIGHT_JUMP, Action.RIGHT_RUN_JUMP, Action.JUMP}
 ADVANCE_FAMILY = {Action.RIGHT, Action.RIGHT_RUN}

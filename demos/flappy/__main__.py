@@ -48,7 +48,13 @@ def parse_args(argv=None):
     parser.add_argument("--model", default=DEFAULT_MODEL, help="local dir or Hub checkpoint id")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--fps", type=int, default=15, help="decision steps per second")
-    parser.add_argument("--unassisted", action="store_true", help="disable the collision shield")
+    parser.add_argument("--unassisted", action="store_true", help="disable the collision shield (assist mode)")
+    parser.add_argument(
+        "--mode",
+        choices=["assist", "pure"],
+        default="assist",
+        help="assist=planner verdicts in labels + shield; pure=facts only, the model judges safety itself",
+    )
     parser.add_argument(
         "--strategy",
         choices=list(STRATEGIES),
@@ -117,9 +123,9 @@ class RunStats:
         return out
 
 
-def step_game(agent, game: FlappyGame, stats: RunStats, shield: bool, strategy: str = "lazy"):
+def step_game(agent, game: FlappyGame, stats: RunStats, shield: bool, strategy: str = "lazy", mode: str = "assist"):
     """One Laya decision + one physics tick. Returns the decision."""
-    decision = decide(agent, game, shield=shield, strategy=strategy)
+    decision = decide(agent, game, shield=shield, strategy=strategy, mode=mode)
     stats.note_decision(decision.inference_ms, decision.shielded)
     if decision.action == "jump":
         game.flap()
@@ -134,7 +140,7 @@ def run_headless(agent, args, stats: RunStats, shield: bool) -> None:
         game = FlappyGame(seed=seed)
         seed += 1
         while game.alive and stats.decisions < args.steps:
-            step_game(agent, game, stats, shield, args.strategy)
+            step_game(agent, game, stats, shield, args.strategy, args.mode)
         stats.note_death(game)
     elapsed = time.monotonic() - started
     print(
@@ -144,6 +150,7 @@ def run_headless(agent, args, stats: RunStats, shield: bool) -> None:
                     "steps_requested": args.steps,
                     "seconds": round(elapsed, 2),
                     "shield": shield,
+                    "mode": args.mode,
                     "network": "offline",
                 }
             ),
@@ -184,7 +191,7 @@ def run_live(agent, args, stats: RunStats, shield: bool) -> None:
                         if key and key.lower() == "p":
                             paused = False
 
-                    decision = step_game(agent, game, stats, shield, strategy)
+                    decision = step_game(agent, game, stats, shield, strategy, args.mode)
                     log.append(
                         {
                             "step": game.steps,
@@ -218,7 +225,7 @@ def run_live(agent, args, stats: RunStats, shield: bool) -> None:
         pass
     finally:
         console.print()
-        console.print_json(json.dumps(stats.summary({"network": "offline", "shield": shield}), ensure_ascii=False))
+        console.print_json(json.dumps(stats.summary({"network": "offline", "shield": shield, "mode": args.mode}), ensure_ascii=False))
 
 
 def main(argv=None) -> int:
@@ -229,7 +236,7 @@ def main(argv=None) -> int:
     with console.status(f"[bold cyan]加载模型 {args.model} ..."):
         agent = laya.load(args.model, dtype="float16")
         # warm-up so the first real step is not skewed by lazy init
-        step_game(agent, FlappyGame(seed=args.seed), RunStats(), shield=False, strategy=args.strategy)
+        step_game(agent, FlappyGame(seed=args.seed), RunStats(), shield=False, strategy=args.strategy, mode=args.mode)
 
     stats = RunStats()
     if args.headless:

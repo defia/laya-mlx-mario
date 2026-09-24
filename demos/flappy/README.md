@@ -20,8 +20,37 @@ uv run --extra demo python -m demos.flappy --fps 20        # 决策节奏
 uv run --extra demo python -m demos.flappy --seed 42       # 固定种子
 uv run --extra demo python -m demos.flappy --strategy high # 起手就飞高（lazy/center/high）
 uv run --extra demo python -m demos.flappy --unassisted    # 关闭安全护盾（裸模型）
+uv run --extra demo python -m demos.flappy --mode pure     # 拆掉规划器判定，模型自己判断安全（见下）
 uv run --extra demo python -m demos.flappy --headless --steps 600   # 无界面跑测
 ```
+
+## pure 模式：让模型自己判断"安不安全"（2026-09-24）
+
+应"安全该由模型判断而不是代码判断"的要求，把 mario pure 配方搬进 flappy：
+状态文本只给事实（鸟高、**竖直速度 vy**、缺口位置/上沿、距离）+ 物理规则
+背景（重力/拍翅运动学），标签中性化（"向上拍一次翅膀"/"不拍翅，按当前速度
+运动"），无规划器、无护盾、无策略提示。
+
+**结果：0 分。** 三层死因，全部量化：
+
+1. **从不拍翅**：P(jump)≈0.03，7 步直坠摔死。机制与 mario 的"永远 right"、
+   release 探针的"罚站 noop"同一条定律——**永远选读起来像"维持现状"的
+   选项**（glide 就是 flappy 里的维持现状）。
+2. **danger 头是常数**：P(不拍翅会撞) 恒 0.985——离地 13 行时 0.985，
+   下一步必撞时还是 0.985（gt-safe 0.984 vs gt-danger 0.985，零判别）。
+   **assist 模式侧栏一直显示的"撞击风险"自始至终是噪声**——它的指示灯
+   语义从未被验证，这是第一次对答案。
+3. **所有诚实杠杆无效**：目标句（背景/指令）、glide 标签的后果化改写
+   （"受重力加速下落"）全部零效果。与 mario 措辞搜索相反——mario 的刀刃
+   （0.2-0.3 分布）可以掷硬币，flappy 的 glide 先验是 0.95+ 的悬崖，
+   没有刀刃可掷。
+
+反向确认 assist 的本质：assist 跑 600 步得 35 分，其中 **shields=0**——
+护盾一次都没触发，模型 100% 执行了规划器写进标签的"最佳动作"。所以
+feature-assisted 流水线的真实分工是：**规划器判断，模型完美执行标签**
+（label-following 满分）；拆掉标签后判断力归零（fact-judgment 零分）。
+这与 mario 判断力基准（第 24 条）共同构成对 typed-decision checkpoint
+能力边界的最终测量。
 
 按键：`1/2/3` 切换飞行策略（省力 / 居中 / 飞高）· `Q` 退出 · `P` 暂停。
 

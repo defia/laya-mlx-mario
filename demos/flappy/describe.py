@@ -42,6 +42,35 @@ def describe(game: FlappyGame, ok: set[str], best: str, strategy: str = "lazy") 
     return s
 
 
+# Pure-mode background: measured kernel physics, no advice, no planner output.
+# Same recipe as the mario pure mode: the facts a judgment needs, stated once.
+BACKGROUND_ZH = (
+    "物理规则：不拍翅时鸟每步下落加速（速度每步+1行，最快每步2行）；"
+    "拍一次翅改为每步上升1行，共上升2行后恢复下落。"
+    "碰地面、飞出顶端、撞管道（缺口高8行）都死亡。"
+)
+
+
+def describe_pure(game: FlappyGame) -> str:
+    """Facts only: no admissible-set size, no best-action, no strategy hint.
+
+    Adds vy — the one number the assisted text never needed (the planner did
+    the arithmetic) but a judging model cannot reason without.
+    """
+    bird_h = game.rows - 1 - game.bird_y
+    s = f"Flappy游戏。鸟离地{bird_h}行，当前竖直速度{game.vy:+d}行/步。"
+    pipe = game.next_pipe
+    if pipe is not None:
+        gap_h = game.rows - 1 - pipe.gap_center
+        diff = gap_h - bird_h
+        rel = f"比鸟{'高' if diff > 0 else '低'}{abs(diff)}行" if diff else "与鸟同高"
+        gap_top_h = game.rows - 1 - pipe.gap_top
+        s += f"缺口中心离地{gap_h}行({rel})，缺口上沿离地{gap_top_h}行，还有{game.columns_to_gap()}步。"
+    else:
+        s += "附近没有管道。"
+    return s + BACKGROUND_ZH
+
+
 def build_questions(ok: set[str], best: str) -> dict:
     def label(action: str) -> str:
         if action not in ok:
@@ -53,6 +82,30 @@ def build_questions(ok: set[str], best: str) -> dict:
             "type": "choice",
             "instructions": "选择朝缺口调整最好的安全动作，避免碰撞。",
             "criteria": {"jump": label("jump"), "glide": label("glide")},
+        },
+        "danger": {
+            "type": "noul",
+            "instructions": "如果这一步不拍翅，鸟是否会撞上管道、地面或飞出顶端？",
+        },
+        "urgency": {
+            "type": "score",
+            "instructions": "当前局面的紧急程度如何？",
+            "criteria": ["安全", "需留意", "危险", "千钧一发"],
+        },
+    }
+
+
+def build_questions_pure() -> dict:
+    """Neutral labels: no safety verdicts, no best-action marking — the
+    model judges from the state facts alone."""
+    return {
+        "action": {
+            "type": "choice",
+            "instructions": "选择下一个动作。",
+            "criteria": {
+                "jump": "向上拍一次翅膀。",
+                "glide": "不拍翅，按当前速度运动。",
+            },
         },
         "danger": {
             "type": "noul",

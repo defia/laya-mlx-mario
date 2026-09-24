@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from .describe import STRATEGIES, build_questions, describe
+from .describe import STRATEGIES, build_questions, build_questions_pure, describe, describe_pure
 from .game import FLAP, FlappyGame
 
 
@@ -74,7 +74,29 @@ def admissible(game: FlappyGame, strategy: str = "lazy") -> set[str]:
     return ok
 
 
-def decide(agent, game: FlappyGame, shield: bool = True, strategy: str = "lazy") -> Decision:
+def decide(agent, game: FlappyGame, shield: bool = True, strategy: str = "lazy",
+           mode: str = "assist") -> Decision:
+    """mode="assist": planner verdicts in the labels + optional shield.
+    mode="pure": facts only, neutral labels, no shield — the mario pure
+    recipe; the model's own safety judgment is the whole policy."""
+    if mode == "pure":
+        prompt = describe_pure(game)
+        started = time.perf_counter()
+        result = agent.predict(prompt, build_questions_pure())
+        inference_ms = (time.perf_counter() - started) * 1000.0
+        answers = result["answers"]
+        action_answer = answers["action"]
+        return Decision(
+            action=str(action_answer["choice"]),
+            raw_action=str(action_answer["choice"]),
+            probabilities=dict(action_answer["probabilities"]),
+            danger=float(answers["danger"]["noul"]),
+            urgency=float(answers["urgency"]["score"]),
+            inference_ms=inference_ms,
+            shielded=False,
+            prompt=prompt,
+        )
+
     ok = admissible(game, strategy)
     best = geometric_policy(game, strategy)
     prompt = describe(game, ok, best, strategy)
